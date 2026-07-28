@@ -10,8 +10,8 @@ import httpx
 
 from myopenai import print_streaming_response, Client, set_process_name
 
-DEFAULT_MODEL = 'gemini-3.1-flash-lite'
-# DEFAULT_MODEL = 'gemini-3.5-flash'
+DEFAULT_MODEL = 'gemini-3.5-flash-lite'
+# DEFAULT_MODEL = 'gemini-3.6-flash'
 # DEFAULT_MODEL = 'gemma-4-26b-a4b-it'
 PROMPT = '根据以下字幕文本总结视频内容。总结结果中请不要包含任何赞助商推广信息。'
 

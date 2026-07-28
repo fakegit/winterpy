@@ -10,7 +10,7 @@ def main(args):
   app = Client(args.api, args.model or DEFAULT_MODEL)
   messages = [{
     'role': 'system',
-    'content': '请简洁扼要地回复',
+    'content': 'Please answer concisely.',
   }]
   app.interact(messages)
 

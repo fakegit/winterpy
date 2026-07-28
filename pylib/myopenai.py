@@ -19,7 +19,13 @@ def print_streaming_response(r: httpx.Response) -> list[str]:
       if line == '[DONE]':
         break
 
-      data = json.loads(line)
+      try:
+        data = json.loads(line)
+      except Exception as e:
+        import sys
+        print(f'failed to parse json line: {e!r}, {line}', file=sys.stderr)
+        continue
+
       for m in data['choices']:
         if d := m['delta']:
           if c := d.get('content'):
