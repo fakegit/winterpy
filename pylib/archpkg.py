@@ -1,7 +1,8 @@
 import os
-import re
-import subprocess
 from collections import namedtuple
+import subprocess
+import re
+from typing import List, Dict
 
 import pyalpm
 
@@ -26,53 +27,53 @@ class PkgNameInfo(namedtuple('PkgNameInfo', 'name, version, release, arch')):
     return cls(*trimext(filename, 3).rsplit('-', 3))
 
 def trimext(name: str, num: int = 1) -> str:
-  for _ in range(num):
+  for i in range(num):
     name = os.path.splitext(name)[0]
   return name
 
-def get_pkgname_with_bash(PKGBUILD: str) -> list[str]:
-  script = f"""\
-. '{PKGBUILD}'
-echo ${{pkgname[*]}}"""
-  result = subprocess.run(
+def get_pkgname_with_bash(PKGBUILD: str) -> List[str]:
+  script = '''\
+. '%s'
+echo ${pkgname[*]}''' % PKGBUILD
+  # Python 3.4 has 'input' arg for check_output
+  p = subprocess.Popen(
     ['bwrap', '--unshare-all', '--ro-bind', '/', '/', '--tmpfs', '/home',
      '--tmpfs', '/run', '--die-with-parent',
      '--tmpfs', '/tmp', '--proc', '/proc', '--dev', '/dev', '/bin/bash'],
-    input = script,
-    stdout = subprocess.PIPE,
-    text = True,
+    stdin=subprocess.PIPE, stdout=subprocess.PIPE,
   )
-  if result.returncode != 0:
+  output = p.communicate(script.encode())[0].decode()
+  ret = p.wait()
+  if ret != 0:
     raise subprocess.CalledProcessError(
-      result.returncode, ['bash'], result.stdout)
-  return result.output.split()
+      ret, ['bash'], output)
+  return output.split()
 
 pkgfile_pat = re.compile(r'(?:^|/).+-[^-]+-[\d.]+-(?:\w+)\.pkg\.tar\.(?:xz|zst)$')
 
 def _strip_ver(s: str) -> str:
   return re.sub(r'[<>=].*', '', s)
 
-def get_package_info(name: str, local: bool = False) -> dict[str, str]:
-  cmd = ['pacman', '-Qi' if local else '-Si', name]
-  env = os.environ.copy()
-  env['LANG'] = 'C'
-  completed = subprocess.run(
-    cmd,
-    stdout = subprocess.PIPE,
-    env = env,
-    check = True,
-  )
-  out = completed.stdout.decode('latin1')
+def get_package_info(name: str, local: bool = False) -> Dict[str, str]:
+  old_lang = os.environ['LANG']
+  os.environ['LANG'] = 'C'
+  args = '-Qi' if local else '-Si'
+  try:
+    outb = subprocess.check_output(["pacman", args, name])
+    out = outb.decode('latin1')
+  finally:
+    os.environ['LANG'] = old_lang
 
-  ret: dict[str, str] = {}
-  key = None
-  for line in out.splitlines():
-    if not line:
+  ret = {}
+  for l in out.splitlines():
+    if not l:
       continue
-    if line[0] not in ' \t':
-      key, value = line.split(':', 1)
+    if l[0] not in ' \t':
+      key, value = l.split(':', 1)
       key = key.strip()
-      ret[key] = value.strip()
+      value = value.strip()
+      ret[key] = value
     else:
-      ret[key] += ' ' + line.strip()
+      ret[key] += ' ' + l.strip()
   return ret
+
