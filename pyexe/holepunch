@@ -23,6 +23,11 @@ def disconnect(sock):
 
 def main(server, prog, name):
   sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+  if server:
+    sock.bind(('', 60001))
+  else:
+    sock.bind(('', 0))
+    myport = sock.getsockname()[1]
   sock.settimeout(2)
 
   # connect for self local ip
@@ -54,6 +59,8 @@ def main(server, prog, name):
   # be optimisctic, works even when peer is symmetric
   dst = pe_ip, pe_port
   disconnect(sock)
+  if not server:
+    sock.bind(('', myport)) # or my port can be changed
   # sock.connect((pe_ip, pe_port))
   logging.info('send and receive local ip...')
   pl_ip = pl_port = None
