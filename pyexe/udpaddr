@@ -1,9 +1,7 @@
-#!/usr/bin/env python3
-# vim:fileencoding=utf-8
+#!/usr/bin/python3
 
 '''echo back clients' udp address'''
 
-import sys
 import time
 import socket
 
@@ -26,12 +24,13 @@ def get_peer(name, addr):
 
   return ret
 
-def main(port):
-  s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+def main(port, family):
+  s = socket.socket(family, socket.SOCK_DGRAM)
   s.bind(('', port))
   try:
     while True:
       data, addr = s.recvfrom(4096)
+      addr = addr[:2]
       msg = data.decode('utf-8', 'replace').rstrip('\n')
       try:
         cmd, *rest = msg.split()
@@ -53,8 +52,16 @@ def main(port):
     print()
 
 if __name__ == '__main__':
-  try:
-    port = int(sys.argv[1])
-  except (ValueError, IndexError):
-    sys.exit('which port to listen?')
-  main(port)
+  import argparse
+
+  parser = argparse.ArgumentParser()
+  parser.add_argument('-4', action='store_true')
+  parser.add_argument('-6', action='store_true')
+  parser.add_argument('port', type=int)
+
+  args = parser.parse_args()
+  if getattr(args, '6'):
+    family = socket.AF_INET6
+  else:
+    family = socket.AF_INET
+  main(args.port, family)
