@@ -16,13 +16,17 @@ udp_server = ('xmpp.vim-cn.com', 2727)
 
 def disconnect(sock):
   libc = CDLL("libc.so.6")
-  buf = create_string_buffer(16) # sizeof struct sockaddr_in
-  libc.connect(sock.fileno(), buf, 16)
+  if sock.family == socket.AF_INET:
+    buflen = 16 # sizeof struct sockaddr_in
+  elif sock.family == socket.AF_INET6:
+    buflen = 28 # sizeof struct sockaddr_in6
+  buf = create_string_buffer(buflen)
+  libc.connect(sock.fileno(), buf, buflen)
 
 # For the address variable names, pe is 'peer external', sl is 'self local', etc
 
-def main(server, prog, name):
-  sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+def main(server, prog, name, family):
+  sock = socket.socket(family, socket.SOCK_DGRAM)
   if server:
     sock.bind(('', 60001))
   else:
@@ -53,7 +57,7 @@ def main(server, prog, name):
     logging.fatal("failed to get peer's address.")
     sys.exit(2)
 
-  sl_ip, sl_port = sock.getsockname()
+  sl_ip, sl_port, *_ = sock.getsockname()
   logging.info('Got my IP and Port: (%r, %s), (%r, %s).', se_ip, se_port, sl_ip, sl_port)
 
   # be optimisctic, works even when peer is symmetric
@@ -61,7 +65,9 @@ def main(server, prog, name):
   disconnect(sock)
   if not server:
     sock.bind(('', myport)) # or my port can be changed
-  # sock.connect((pe_ip, pe_port))
+  # disconnect with IPv6 seems to fail and another connect is needed
+  if ':' in pe_ip:
+    sock.connect((pe_ip, pe_port))
   logging.info('send and receive local ip...')
   pl_ip = pl_port = None
   for i in range(1, 5):
@@ -91,7 +97,11 @@ def main(server, prog, name):
 def sprog_mosh(sock, port, pl_ip, pl_port, se_ip, se_port, pe_ip, pe_port):
   sock.close()
   logging.info('Starting mosh server...')
-  msg = subprocess.check_output(['mosh-server', 'new', '-p', str(port)])
+  if ':' in se_ip:
+    cmd = ['mosh-server', 'new', '-i', '::', '-p', str(port)]
+  else:
+    cmd = ['mosh-server', 'new', '-p', str(port)]
+  msg = subprocess.check_output(cmd)
   secret = msg.split()[3].decode()
   print('Connect with:\nMOSH_KEY=%s MOSH_CPORT=%s mosh-client-lily %s %s' % (secret, pl_port, se_ip, se_port))
 
@@ -220,6 +230,8 @@ if __name__ == '__main__':
                       help='program to run via the hole')
   parser.add_argument('-a', '--auth', type=open,
                       help='OpenVPN auth info file (client)')
+  parser.add_argument('-4', action='store_true')
+  parser.add_argument('-6', action='store_true')
   args = parser.parse_args()
 
   if 'sprog_' + args.prog not in globals():
@@ -228,4 +240,9 @@ if __name__ == '__main__':
   if args.prog == 'openvpn' and not args.server and not args.auth:
     sys.exit('Auth file should be provided for OpenVPN client')
 
-  main(args.server, args.prog, args.name)
+  if getattr(args, '6'):
+    family = socket.AF_INET6
+  else:
+    family = socket.AF_INET
+
+  main(args.server, args.prog, args.name, family)
